@@ -50,6 +50,13 @@ The start script will automatically:
 
 The backend provides a FastAPI interface. Visit `http://127.0.0.1:5001/docs` for interactive API documentation.
 
+## Documentation
+
+Detailed technical documentation is available in the `docs/` folder:
+
+- **[Algorithm.md](docs/Algorithm.md)**: Detailed explanation of the BFS pathfinding algorithm used by the agent
+- **[Functionality.md](docs/Functionality.md)**: Complete system overview, architecture, and component descriptions
+
 ## Understanding the Agent Behavior
 
 The vacuum cleaner agent demonstrates basic AI principles:
