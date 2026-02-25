@@ -31,14 +31,41 @@ The agent uses a pathfinding algorithm called Breadth-First Search (BFS) to alwa
 
 ## How to Run
 
+### Prerequisites
+- Python 3.8+ (with pip)
+- Node.js 16+ (with npm)
+- On Windows: Git Bash, WSL, or any bash-compatible shell
+
+### Quick Start
 1. Clone this repository
-2. Run the start script: `./start.sh`
+2. Run the appropriate start script:
+   - **Linux/Mac**: `./start.sh`
+   - **Windows**: `start.bat` (or `./start.sh` if using Git Bash/WSL)
 3. Open your browser to `http://localhost:3000` to see the simulation
 
-The start script will automatically:
-- Install all required Python and Node.js dependencies
-- Start the backend server on port 5001
-- Start the frontend on port 3000
+### What the Start Script Does
+The `./start.sh` script automatically:
+- Installs all required Python dependencies (FastAPI, Uvicorn, NumPy)
+- Installs all required Node.js dependencies
+- Starts the backend server on port 5001
+- Starts the frontend development server on port 3000
+
+### Manual Setup (Alternative)
+If the start script doesn't work on your system:
+
+**Backend Setup:**
+```bash
+cd python-backend
+pip install -r requirements.txt
+python server.py
+```
+
+**Frontend Setup (in another terminal):**
+```bash
+cd nextjs-frontend
+npm install
+npm run dev
+```
 
 ## Controls
 
