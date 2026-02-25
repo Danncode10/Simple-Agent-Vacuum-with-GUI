@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 
 interface Cell {
   type: 'empty' | 'dirt' | 'vacuum';
+  visited: boolean;
 }
 
 interface RoomState {
@@ -25,6 +26,7 @@ const VacuumGrid: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [visited, setVisited] = useState<Set<string>>(new Set());
 
   const API_BASE = 'http://127.0.0.1:5001/api';
 
@@ -53,6 +55,7 @@ const VacuumGrid: React.FC = () => {
       });
       const data = await response.json();
       if (data.success) {
+        setVisited(prev => new Set(prev).add(`${data.position[0]}-${data.position[1]}`));
         await fetchState();
       }
     } catch (error) {
@@ -67,10 +70,43 @@ const VacuumGrid: React.FC = () => {
         method: 'POST',
       });
       const data = await response.json();
-      setGameState(data.final_state);
+      const actions = data.actions;
+
+      // Animate actions
+      for (let i = 0; i < actions.length; i++) {
+        setTimeout(() => {
+          const action = actions[i];
+          if (action.type === 'move') {
+            setVisited(prev => new Set(prev).add(`${action.position[0]}-${action.position[1]}`));
+            setGameState(prev => prev ? {
+              ...prev,
+              agent: { ...prev.agent, position: action.position, moves: prev.agent.moves + 1 }
+            } : null);
+          } else if (action.type === 'clean') {
+            setGameState(prev => prev ? {
+              ...prev,
+              room: {
+                ...prev.room,
+                dirt_positions: prev.room.dirt_positions.filter(([x, y]) => x !== action.position[0] || y !== action.position[1]),
+                grid: prev.room.grid.map((row, y) =>
+                  row.map((cell, x) =>
+                    x === action.position[0] && y === action.position[1] ? 'clean' : cell
+                  )
+                )
+              }
+            } : null);
+          }
+        }, i * 500); // 500ms delay per action
+      }
+
+      // Set final state after animation
+      setTimeout(() => {
+        setGameState(data.final_state);
+        setAutoRunning(false);
+      }, actions.length * 500 + 100);
+
     } catch (error) {
       console.error('Auto clean failed:', error);
-    } finally {
       setAutoRunning(false);
     }
   };
@@ -82,6 +118,7 @@ const VacuumGrid: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dirt_count: 10 }),
       });
+      setVisited(new Set());
       await fetchState();
     } catch (error) {
       console.error('Reset failed:', error);
@@ -114,19 +151,15 @@ const VacuumGrid: React.FC = () => {
       if (x === agent.position[0] && y === agent.position[1]) {
         type = 'vacuum';
       }
-      return { type };
+      return { type, visited: visited.has(`${x}-${y}`) };
     })
   );
 
-  const getCellColor = (type: Cell['type']) => {
-    switch (type) {
-      case 'vacuum':
-        return 'bg-blue-500';
-      case 'dirt':
-        return 'bg-yellow-600';
-      default:
-        return 'bg-gray-200';
-    }
+  const getCellColor = (type: Cell['type'], isVisited: boolean) => {
+    if (type === 'vacuum') return 'bg-blue-500';
+    if (type === 'dirt') return 'bg-yellow-600';
+    if (isVisited) return 'bg-blue-200';
+    return 'bg-gray-200';
   };
 
   return (
@@ -138,7 +171,7 @@ const VacuumGrid: React.FC = () => {
           row.map((cell, x) => (
             <div
               key={`${x}-${y}`}
-              className={`w-8 h-8 ${getCellColor(cell.type)} border border-gray-300 flex items-center justify-center text-xs font-bold`}
+              className={`w-8 h-8 ${getCellColor(cell.type, cell.visited)} border border-gray-300 flex items-center justify-center text-xs font-bold`}
             >
               {cell.type === 'vacuum' && 'V'}
               {cell.type === 'dirt' && 'D'}
@@ -202,7 +235,7 @@ const VacuumGrid: React.FC = () => {
       </div>
 
       <div className="mt-4 text-sm text-gray-600">
-        <p>V: Vacuum | D: Dirt | Empty: Clean floor</p>
+        <p>V: Vacuum | D: Dirt | Light Blue: Visited | Gray: Clean floor</p>
       </div>
     </div>
   );
