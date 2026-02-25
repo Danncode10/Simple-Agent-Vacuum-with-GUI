@@ -1,62 +1,139 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface Cell {
   type: 'empty' | 'dirt' | 'vacuum';
 }
 
+interface RoomState {
+  grid: string[][];
+  dirt_positions: [number, number][];
+}
+
+interface AgentState {
+  position: [number, number];
+  moves: number;
+}
+
+interface GameState {
+  room: RoomState;
+  agent: AgentState;
+}
+
 const VacuumGrid: React.FC = () => {
-  // Mock data: 10x10 grid
-  const gridSize = 10;
-  const dirtCount = 10;
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [autoRunning, setAutoRunning] = useState(false);
 
-  // Generate random dirt positions
-  const [dirtPositions] = useState<Set<string>>(() => {
-    const positions = new Set<string>();
-    while (positions.size < dirtCount) {
-      const x = Math.floor(Math.random() * gridSize);
-      const y = Math.floor(Math.random() * gridSize);
-      positions.add(`${x}-${y}`);
+  const API_BASE = 'http://127.0.0.1:5001/api';
+
+  useEffect(() => {
+    fetchState();
+  }, []);
+
+  const fetchState = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/state`);
+      const data = await response.json();
+      setGameState(data);
+    } catch (error) {
+      console.error('Failed to fetch state:', error);
+    } finally {
+      setLoading(false);
     }
-    return positions;
-  });
+  };
 
-  // Vacuum position
-  const vacuumX = 0;
-  const vacuumY = 0;
-
-  // Create grid
-  const grid: Cell[][] = [];
-  for (let y = 0; y < gridSize; y++) {
-    const row: Cell[] = [];
-    for (let x = 0; x < gridSize; x++) {
-      let type: Cell['type'] = 'empty';
-      if (x === vacuumX && y === vacuumY) {
-        type = 'vacuum';
-      } else if (dirtPositions.has(`${x}-${y}`)) {
-        type = 'dirt';
+  const handleMove = async (direction: string) => {
+    try {
+      const response = await fetch(`${API_BASE}/move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ direction }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        await fetchState();
       }
-      row.push({ type });
+    } catch (error) {
+      console.error('Move failed:', error);
     }
-    grid.push(row);
+  };
+
+  const handleAutoClean = async () => {
+    setAutoRunning(true);
+    try {
+      const response = await fetch(`${API_BASE}/auto_clean`, {
+        method: 'POST',
+      });
+      const data = await response.json();
+      setGameState(data.final_state);
+    } catch (error) {
+      console.error('Auto clean failed:', error);
+    } finally {
+      setAutoRunning(false);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await fetch(`${API_BASE}/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dirt_count: 10 }),
+      });
+      await fetchState();
+    } catch (error) {
+      console.error('Reset failed:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
   }
+
+  if (!gameState) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-xl text-red-500">Failed to load game state</div>
+      </div>
+    );
+  }
+
+  const { room, agent } = gameState;
+  const gridSize = room.grid.length;
+
+  // Create grid with vacuum
+  const grid: Cell[][] = room.grid.map((row, y) =>
+    row.map((cell, x) => {
+      let type: Cell['type'] = cell === 'dirt' ? 'dirt' : 'empty';
+      if (x === agent.position[0] && y === agent.position[1]) {
+        type = 'vacuum';
+      }
+      return { type };
+    })
+  );
 
   const getCellColor = (type: Cell['type']) => {
     switch (type) {
       case 'vacuum':
         return 'bg-blue-500';
       case 'dirt':
-        return 'bg-brown-600';
+        return 'bg-yellow-600';
       default:
         return 'bg-gray-200';
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       <h1 className="text-2xl font-bold mb-4">Vacuum Cleaner Environment</h1>
-      <div className="grid grid-cols-10 gap-1 border-2 border-gray-400 p-4 bg-white">
+
+      <div className="grid grid-cols-10 gap-1 border-2 border-gray-400 p-4 bg-white mb-4">
         {grid.map((row, y) =>
           row.map((cell, x) => (
             <div
@@ -69,6 +146,61 @@ const VacuumGrid: React.FC = () => {
           ))
         )}
       </div>
+
+      <div className="text-sm text-gray-600 mb-4">
+        <p>Moves: {agent.moves} | Dirt remaining: {room.dirt_positions.length}</p>
+      </div>
+
+      {/* Manual Controls */}
+      <div className="mb-4">
+        <h2 className="text-lg font-semibold mb-2">Manual Control</h2>
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={() => handleMove('up')}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            ↑ Up
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleMove('left')}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              ← Left
+            </button>
+            <button
+              onClick={() => handleMove('right')}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+            >
+              → Right
+            </button>
+          </div>
+          <button
+            onClick={() => handleMove('down')}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            ↓ Down
+          </button>
+        </div>
+      </div>
+
+      {/* Auto Controls */}
+      <div className="flex gap-4">
+        <button
+          onClick={handleAutoClean}
+          disabled={autoRunning}
+          className="px-6 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
+        >
+          {autoRunning ? 'Cleaning...' : 'Auto Clean'}
+        </button>
+        <button
+          onClick={handleReset}
+          className="px-6 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+        >
+          Reset
+        </button>
+      </div>
+
       <div className="mt-4 text-sm text-gray-600">
         <p>V: Vacuum | D: Dirt | Empty: Clean floor</p>
       </div>
